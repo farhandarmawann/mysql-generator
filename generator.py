@@ -1,6 +1,6 @@
-import mysql.connector
+import mysql.connector, re
 
-# Menghubungkan ke database
+# Connect to the database
 conn = mysql.connector.connect(
     host="localhost", # Your Hostname
     user="root", # Your MySQL Username
@@ -8,29 +8,29 @@ conn = mysql.connector.connect(
     database="techsmart" # Your Database Name
 )
 
-# Membuat objek cursor untuk mengeksekusi perintah SQL
+# Create a cursor object to execute SQL commands
 cursor = conn.cursor()
 
-# Membuat tabel
+# Create table
 def create_table():
-    table_name = input("Masukkan nama tabel: ")
-    column_count = int(input("Masukkan jumlah kolom: "))
+    table_name = input("Enter table name: ")
+    column_count = int(input("Enter number of columns: "))
     
     columns = []
     primary_key = None
     foreign_keys = []
     for i in range(column_count):
-        column_name = input(f"Masukkan nama kolom ke-{i+1}: ")
-        column_type = input(f"Masukkan tipe data untuk kolom {column_name} (misalnya VARCHAR(50)): ")
-        is_primary_key = input(f"Apakah kolom {column_name} adalah primary key? (y/n): ").lower()
+        column_name = input(f"Enter name for column {i+1}: ")
+        column_type = input(f"Enter data type for column {column_name} (e.g., VARCHAR(50)): ")
+        is_primary_key = input(f"Is column {column_name} a primary key? (y/n): ").lower()
         if is_primary_key == 'y':
             primary_key = column_name
         columns.append(f"`{column_name}` {column_type} NOT NULL")
 
-        foreign_key_input = input(f"Apakah kolom {column_name} adalah foreign key? (y/n): ")
+        foreign_key_input = input(f"Is column {column_name} a foreign key? (y/n): ")
         if foreign_key_input.lower() == 'y':
-            referenced_table = input(f"Masukkan nama tabel yang dirujuk: ")
-            referenced_column = input(f"Masukkan nama kolom di tabel {referenced_table}: ")
+            referenced_table = input(f"Enter name of referenced table for column {column_name}: ")
+            referenced_column = input(f"Enter name of column in table {referenced_table}: ")
             foreign_keys.append((column_name, referenced_table, referenced_column))
     
     create_table_query = f"CREATE TABLE IF NOT EXISTS `{table_name}` (\n"
@@ -42,195 +42,271 @@ def create_table():
         create_table_query += ",\n" + ",\n".join(foreign_key_queries)
     create_table_query += "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;"
     
-    print("Query SQL:")
-    print(create_table_query)  # Cetak query SQL
+    print("SQL Query:")
+    print(create_table_query)  # Print SQL query
     cursor.execute(create_table_query)
-    print("Tabel berhasil dibuat")
+    print("Table created successfully")
 
 
-# Menambahkan data ke tabel
+# Insert data into table
 def insert_data():
-    # Menampilkan daftar tabel
+    # Show list of tables
     list_tables()
     
-    # Memilih tabel
-    table_name = input("Masukkan nama tabel: ")
+    # Choose table
+    table_name = input("Enter table name: ")
     
-    # Mendapatkan daftar kolom dari tabel
+    # Get list of columns from the table
     cursor.execute(f"DESCRIBE {table_name}")
     columns = cursor.fetchall()
     column_names = [column[0] for column in columns]
 
-    # Menampilkan daftar kolom
-    print("Daftar kolom dalam tabel:")
+    # Show list of columns
+    print("List of columns in the table:")
     for i, column_name in enumerate(column_names, start=1):
         print(f"{i}. {column_name}")
 
-    # Meminta input nilai untuk setiap kolom
+    # Ask for input values for each column
     values = []
     for column_name in column_names:
-        value = input(f"Masukkan nilai untuk kolom {column_name}: ")
+        value = input(f"Enter value for column {column_name}: ")
         values.append(value)
 
-    # Membuat string query SQL untuk memasukkan data
+    # Create SQL query string to insert data
     insert_query = f"INSERT INTO {table_name} ({', '.join(column_names)}) VALUES ({', '.join(['%s']*len(values))})"
 
-    # Menjalankan query SQL
-    print("Query SQL:")
-    # Mengganti placeholder %s dengan nilai yang dimasukkan
+    # Execute SQL query
+    print("SQL Query:")
     insert_query = insert_query.format(*values)
-    print(insert_query)  # Cetak query SQL
+    print(insert_query)  # Print SQL query
     cursor.execute(insert_query, values)
     conn.commit()
-    print("Data berhasil ditambahkan")
+    print("Data inserted successfully")
 
 
+# Edit data in a table
+def edit_data():
+    # Show list of tables
+    list_tables()
+
+    # Choose table
+    table_name = input("Enter table name: ")
+
+    # Show structure and content of the selected table
+    view_table(table_name)
+
+    # Ask for the ID of the data to be edited
+    record_id = input("Enter the ID of the data to be edited: ")
+
+    # Get column structure from the table
+    cursor.execute(f"DESCRIBE {table_name}")
+    columns = cursor.fetchall()
+    column_names = [column[0] for column in columns]
+
+    # Show list of columns
+    print("List of columns in the table:")
+    for i, column_name in enumerate(column_names, start=1):
+        print(f"{i}. {column_name}")
+
+    # Ask for new values for each column
+    new_values = []
+    for column_name in column_names:
+        new_value = input(f"Enter new value for column {column_name}: ")
+        new_values.append(new_value)
+
+    # Create SQL query string to update data
+    update_query = f"UPDATE {table_name} SET "
+    update_query += ", ".join([f"{column_name} = %s" for column_name in column_names])
+    update_query += " WHERE id = %s"
+
+    # Execute SQL query
+    print("SQL Query:")
+    update_values = new_values + [record_id]
+    print(update_query % tuple(update_values))  # Print SQL query
+    cursor.execute(update_query, update_values)
+    conn.commit()
+    print("Data updated successfully")
+
+
+# Delete data from a table
+def delete_data():
+    # Show list of tables
+    list_tables()
+    
+    # Choose table
+    table_name = input("Enter table name: ")
+
+    # Show structure and content of the selected table
+    view_table(table_name)
+
+    # Ask for the ID of the data to be deleted
+    record_id = input("Enter the ID of the data to be deleted: ")
+
+    # Create SQL query to delete data
+    delete_query = f"DELETE FROM {table_name} WHERE id = %s"
+
+    # Execute SQL query
+    print("SQL Query:")
+    print(delete_query)  # Print SQL query
+    cursor.execute(delete_query, (record_id,))
+    conn.commit()
+    print("Data deleted successfully")
+
+
+# View data in a table
 def view_table(table_name):
-    # Mendapatkan struktur kolom dari tabel
+    # Get column structure from the table
     describe_query = f"DESCRIBE `{table_name}`"
     cursor.execute(describe_query)
     columns = cursor.fetchall()
 
-    print(f"\nStruktur kolom tabel {table_name}:")
+    print(f"\nColumn structure of table {table_name}:")
     for column in columns:
         print(column[0], "-", column[1])
 
-    # Mendapatkan data dari tabel
+    # Get data from the table
     select_query = f"SELECT * FROM `{table_name}`"
     cursor.execute(select_query)
     records = cursor.fetchall()
 
     if records:
-        print("\nIsi tabel:")
+        print("\nTable content:")
         for record in records:
             print(record)
     else:
-        print(f"Tabel {table_name} kosong")
+        print(f"Table {table_name} is empty")
 
 
-# Melihat isi database
+# View contents of the database
 def view_database():
     cursor.execute("SHOW TABLES")
     tables = cursor.fetchall()
     for table in tables:
         table_name = table[0]
         select_query = f"SELECT * FROM `{table_name}`"
-        print("Query SQL:")
-        print(select_query)  # Cetak query SQL
+        print("SQL Query:")
+        print(select_query)  # Print SQL query
         cursor.execute(select_query)
         records = cursor.fetchall()
         if records:
-            print(f"Isi tabel {table_name}:")
+            print(f"Table content {table_name}:")
             for record in records:
                 print(record)
         else:
-            print(f"Tabel {table_name} kosong")
-        print()  # Membuat baris kosong antara setiap tabel
+            print(f"Table {table_name} is empty")
+        print()  # Add a blank line between each table
 
-# Mencetak daftar tabel yang ada dalam database
+
+# Print list of tables in the database
 def list_tables():
     show_tables_query = "SHOW TABLES"
-    print("Query SQL:")
-    print(show_tables_query)  # Cetak query SQL
+    print("SQL Query:")
+    print(show_tables_query)  # Print SQL query
     cursor.execute(show_tables_query)
     tables = cursor.fetchall()
-    print("Daftar tabel dalam database:")
+    print("List of tables in the database:")
     for i, table in enumerate(tables, start=1):
         print(f"{i}. {table[0]}")
 
 
-# Fungsi untuk menghapus data dari tabel
-def delete_data():
-    # Menampilkan daftar tabel
-    list_tables()
-    
-    # Memilih tabel
-    table_name = input("Masukkan nama tabel: ")
-
-    # Menampilkan struktur dan isi tabel yang dipilih
-    view_table(table_name)
-
-    # Meminta ID data yang akan dihapus
-    record_id = input("Masukkan ID data yang akan dihapus: ")
-
-    # Membuat query SQL untuk menghapus data
-    delete_query = f"DELETE FROM {table_name} WHERE id = %s"
-
-    # Menjalankan query SQL
-    print("Query SQL:")
-    print(delete_query)  # Cetak query SQL
-    cursor.execute(delete_query, (record_id,))
-    conn.commit()
-    print("Data berhasil dihapus")
-
-
-# Menghapus tabel dari database
+# Drop table from the database
 def drop_table():
-    # Menampilkan daftar tabel
+    # Show list of tables
     list_tables()
     
-    # Memilih tabel
-    table_name = input("Masukkan nama tabel yang akan dihapus: ")
+    # Choose table
+    table_name = input("Enter the name of the table to be dropped: ")
 
-    # Membuat query SQL untuk menghapus tabel
+    # Create SQL query to drop table
     drop_table_query = f"DROP TABLE IF EXISTS {table_name}"
 
-    # Menjalankan query SQL
-    print("Query SQL:")
-    print(drop_table_query)  # Cetak query SQL
+    # Execute SQL query
+    print("SQL Query:")
+    print(drop_table_query)  # Print SQL query
     cursor.execute(drop_table_query)
     conn.commit()
-    print("Tabel berhasil dihapus")
+    print("Table dropped successfully")
 
 
+# Function to display relations present in the database
+def show_relations():
+    # Get list of tables
+    cursor.execute("SHOW TABLES")
+    tables = cursor.fetchall()
 
-# Pilihan menu
+    # Initialize dictionary to store relations
+    relations = {}
+
+    # Collect relation information from each table
+    for table in tables:
+        table_name = table[0]
+        cursor.execute(f"SHOW CREATE TABLE `{table_name}`")
+        create_table_query = cursor.fetchone()[1]
+        foreign_keys = re.findall(r"FOREIGN KEY \(`(.*?)`\) REFERENCES `(.*?)` \(`(.*?)`\)", create_table_query)
+        if foreign_keys:
+            relations[table_name] = [(fk[0], fk[1], fk[2]) for fk in foreign_keys]
+
+    # Display relations present in the database
+    print("Relations present in the database:")
+    for table_name, foreign_keys in relations.items():
+        print(f"Table '{table_name}' has relations with:")
+        for fk in foreign_keys:
+            print(f"- Column '{fk[0]}' references table '{fk[1]}' on column '{fk[2]}'")
+
+
+# Menu options
 def menu():
     print("=============== WELCOME TO MYSQL BUILDER ===============")
     print("Menu:")
-    print("1. Tambah Tabel")
-    print("2. Hapus Tabel")
-    print("3. Tambah Data")
-    print("4. Hapus Data")
-    print("5. Lihat Isi Tabel")
-    print("6. Lihat Isi Database")
-    print("7. List Tabel")
-    print("0. Keluar")
+    print("1. Add Table")
+    print("2. Drop Table")
+    print("3. Add Content")
+    print("4. Update Content")
+    print("5. Delete Content")
+    print("6. View Table Content")
+    print("7. View Database Content")
+    print("8. List Tables")
+    print("9. Show Relations")
+    print("0. Exit")
 
-# Program Utama
+# Main program
 try:
     while True:
         menu()
-        choice = input("Pilih menu: ")
+        choice = input("Select menu: ")
 
         if choice == '1':
-            create_table()
-        elif choice == '4':
-            delete_data()
-        elif choice == '3':
-            insert_data()
+            create_table() # Add Table
         elif choice == '2':
-            drop_table()
+            drop_table() # Drop Table
+        elif choice == '3':
+            insert_data() # Add Data
+        elif choice == '4':
+            edit_data() # Edit Data
         elif choice == '5':
-            list_tables()
-            table_name = input("Masukkan nama tabel: ")
-            view_table(table_name)
+            delete_data() # Delete Data
         elif choice == '6':
-            view_database()
-        elif choice == '7':
             list_tables()
+            table_name = input("Enter table name: ")
+            view_table(table_name) # View Table Content
+        elif choice == '7':
+            view_database() # View Database Content
+        elif choice == '8':
+            list_tables() # List Tables
+        elif choice == '9':
+            show_relations() 
         elif choice == '0':
             break
         else:
-            print("Pilihan tidak valid.")
+            print("Invalid choice.")
 
 except mysql.connector.Error as error:
     print("Error:", error)
 
 finally:
-    # Menutup cursor dan koneksi
+    # Close cursor and connection
     if 'cursor' in locals():
         cursor.close()
     if 'conn' in locals() and conn.is_connected():
         conn.close()
-        print("Koneksi ditutup")
+        print("Connection closed")
