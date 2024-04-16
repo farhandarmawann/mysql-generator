@@ -17,11 +17,15 @@ def create_table():
     column_count = int(input("Masukkan jumlah kolom: "))
     
     columns = []
+    primary_key = None
     foreign_keys = []
     for i in range(column_count):
         column_name = input(f"Masukkan nama kolom ke-{i+1}: ")
         column_type = input(f"Masukkan tipe data untuk kolom {column_name} (misalnya VARCHAR(50)): ")
-        columns.append(f"{column_name} {column_type}")
+        is_primary_key = input(f"Apakah kolom {column_name} adalah primary key? (y/n): ").lower()
+        if is_primary_key == 'y':
+            primary_key = column_name
+        columns.append(f"`{column_name}` {column_type} NOT NULL")
 
         foreign_key_input = input(f"Apakah kolom {column_name} adalah foreign key? (y/n): ")
         if foreign_key_input.lower() == 'y':
@@ -29,12 +33,14 @@ def create_table():
             referenced_column = input(f"Masukkan nama kolom di tabel {referenced_table}: ")
             foreign_keys.append((column_name, referenced_table, referenced_column))
     
-    create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join(columns)}"
+    create_table_query = f"CREATE TABLE IF NOT EXISTS `{table_name}` (\n"
+    create_table_query += ",\n".join(columns)
+    if primary_key:
+        create_table_query += f",\nPRIMARY KEY (`{primary_key}`)"
     if foreign_keys:
-        foreign_key_queries = [f"FOREIGN KEY ({fk[0]}) REFERENCES {fk[1]}({fk[2]})" for fk in foreign_keys]
-        create_table_query += f", {''.join(foreign_key_queries)})"
-    else:
-        create_table_query += ")"
+        foreign_key_queries = [f"FOREIGN KEY (`{fk[0]}`) REFERENCES `{fk[1]}`(`{fk[2]}`)" for fk in foreign_keys]
+        create_table_query += ",\n" + ",\n".join(foreign_key_queries)
+    create_table_query += "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;"
     
     print("Query SQL:")
     print(create_table_query)  # Cetak query SQL
@@ -79,45 +85,27 @@ def insert_data():
     print("Data berhasil ditambahkan")
 
 
-# Melihat isi tabel beserta struktur kolomnya
-def view_table():
-    cursor.execute("SHOW TABLES")
-    tables = cursor.fetchall()
+def view_table(table_name):
+    # Mendapatkan struktur kolom dari tabel
+    describe_query = f"DESCRIBE `{table_name}`"
+    cursor.execute(describe_query)
+    columns = cursor.fetchall()
 
-    print("Daftar tabel dalam database:")
-    for i, table in enumerate(tables, start=1):
-        print(f"{i}. {table[0]}")
+    print(f"\nStruktur kolom tabel {table_name}:")
+    for column in columns:
+        print(column[0], "-", column[1])
 
-    try:
-        table_number = int(input("Pilih nomor tabel: "))
-        selected_table = tables[table_number - 1][0]
+    # Mendapatkan data dari tabel
+    select_query = f"SELECT * FROM `{table_name}`"
+    cursor.execute(select_query)
+    records = cursor.fetchall()
 
-        # Mendapatkan struktur kolom dari tabel
-        describe_query = f"DESCRIBE `{selected_table}`"
-        print("Query SQL:")
-        print(describe_query)  # Cetak query SQL
-        cursor.execute(describe_query)
-        columns = cursor.fetchall()
-
-        print(f"\nStruktur kolom tabel {selected_table}:")
-        for column in columns:
-            print(column[0], "-", column[1])
-
-        # Mendapatkan data dari tabel
-        select_query = f"SELECT * FROM `{selected_table}`"
-        print("Query SQL:")
-        print(select_query)  # Cetak query SQL
-        cursor.execute(select_query)
-        records = cursor.fetchall()
-
-        if records:
-            print("\nIsi tabel:")
-            for record in records:
-                print(record)
-        else:
-            print(f"Tabel {selected_table} kosong")
-    except ValueError:
-        print("Masukkan nomor yang valid.")
+    if records:
+        print("\nIsi tabel:")
+        for record in records:
+            print(record)
+    else:
+        print(f"Tabel {table_name} kosong")
 
 
 # Melihat isi database
@@ -151,7 +139,7 @@ def list_tables():
         print(f"{i}. {table[0]}")
 
 
-# Menghapus data dari tabel
+# Fungsi untuk menghapus data dari tabel
 def delete_data():
     # Menampilkan daftar tabel
     list_tables()
@@ -159,7 +147,7 @@ def delete_data():
     # Memilih tabel
     table_name = input("Masukkan nama tabel: ")
 
-    # Menampilkan data dari tabel yang dipilih
+    # Menampilkan struktur dan isi tabel yang dipilih
     view_table(table_name)
 
     # Meminta ID data yang akan dihapus
@@ -217,14 +205,16 @@ try:
 
         if choice == '1':
             create_table()
-        elif choice == '2':
+        elif choice == '4':
             delete_data()
         elif choice == '3':
             insert_data()
-        elif choice == '4':
+        elif choice == '2':
             drop_table()
         elif choice == '5':
-            view_table()
+            list_tables()
+            table_name = input("Masukkan nama tabel: ")
+            view_table(table_name)
         elif choice == '6':
             view_database()
         elif choice == '7':
